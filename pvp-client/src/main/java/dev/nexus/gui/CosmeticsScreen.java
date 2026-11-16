@@ -11,6 +11,7 @@ import dev.nexus.util.Rd;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
@@ -18,11 +19,17 @@ import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Menu Cosmetics: zaklada peleryny, skrzydla i aureole (te same ustawienia co w ClickGUI). */
+/**
+ * Cosmetic locker with a real player render on the right and the selectable items on the left.
+ * The player is rendered by Minecraft's normal entity renderer, so the live skin and feature
+ * renderers are reused instead of drawing a fake 2D character.
+ */
 public final class CosmeticsScreen extends Screen {
     private static final String[] TABS = {"Peleryny", "Skrzydła", "Aureole"};
-    private static final int CARD_H = 72, GAP = 7, MIN_CARD = 150, HEADER = 30;
-    private static final int PREVIEW = 50;
+    private static final int HEADER = 38;
+    private static final int CARD_H = 54;
+    private static final int CARD_GAP = 6;
+    private static final int FOOTER_H = 46;
 
     private final Screen parent;
     private final List<Cosmetic> cosmetics = new ArrayList<>();
@@ -33,174 +40,222 @@ public final class CosmeticsScreen extends Screen {
     public CosmeticsScreen(Screen parent) {
         super(Text.literal("Cosmetics"));
         this.parent = parent;
-        Capes c = NexusClient.modules().get(Capes.class);
-        Wings w = NexusClient.modules().get(Wings.class);
-        Halo h = NexusClient.modules().get(Halo.class);
-        cosmetics.add(c);
-        cosmetics.add(w);
-        cosmetics.add(h);
-        for (Cosmetic k : cosmetics) k.refresh();
+
+        cosmetics.add(NexusClient.modules().get(Capes.class));
+        cosmetics.add(NexusClient.modules().get(Wings.class));
+        cosmetics.add(NexusClient.modules().get(Halo.class));
+
+        for (Cosmetic cosmetic : cosmetics) {
+            if (cosmetic != null) cosmetic.refresh();
+        }
     }
 
     @Override public boolean shouldPause() { return false; }
     @Override public boolean shouldCloseOnEsc() { return false; }
 
     @Override
-    public void removed() { ConfigManager.save(); }
+    public void removed() {
+        ConfigManager.save();
+    }
 
     private void layout() {
-        pw = Math.min(width - 8, Math.max(300, Math.min(620, (int) (width * 0.8))));
-        ph = Math.min(height - 8, Math.max(190, Math.min(380, (int) (height * 0.82))));
+        pw = Math.min(width - 20, Math.max(520, Math.min(840, (int) (width * 0.92f))));
+        ph = Math.min(height - 20, Math.max(300, Math.min(520, (int) (height * 0.88f))));
         px = (width - pw) / 2;
         py = (height - ph) / 2;
     }
 
     private Cosmetic current() { return cosmetics.get(tab); }
-    private int cols() { return Math.max(1, (pw - 16 + GAP) / (MIN_CARD + GAP)); }
-    private int cardW() { int c = cols(); return (pw - 16 - GAP * (c - 1)) / c; }
-    private int gridTop() { return py + HEADER + 10; }
-    private int gridBottom() { return py + ph - 44; }
+
+    private int listWidth() {
+        return Math.max(205, Math.min(300, (int) (pw * 0.39f)));
+    }
+
+    private int listX() { return px + 10; }
+    private int listTop() { return py + HEADER + 10; }
+    private int listBottom() { return py + ph - FOOTER_H; }
+    private int previewX() { return px + listWidth() + 20; }
+    private int previewY() { return py + HEADER + 10; }
+    private int previewW() { return px + pw - 10 - previewX(); }
+    private int previewH() { return ph - HEADER - FOOTER_H - 10; }
+    private int cardWidth() { return listWidth() - 20; }
+
     private int tabW(int i) { return Rd.width(TABS[i]) + 28; }
+
     private int tabX(int i) {
         int total = 0;
         for (int k = 0; k < TABS.length; k++) total += tabW(k);
-        int x = px + (pw - total) / 2;
+        int x = px + pw - 12 - total;
         for (int k = 0; k < i; k++) x += tabW(k);
         return x;
     }
 
     private int[] cardRect(int i) {
-        int c = cols(), w = cardW();
-        return new int[]{px + 8 + (i % c) * (w + GAP), gridTop() - Math.round(scroll) + (i / c) * (CARD_H + GAP), w, CARD_H};
+        return new int[] {
+                listX(),
+                listTop() - Math.round(scroll) + i * (CARD_H + CARD_GAP),
+                cardWidth(),
+                CARD_H
+        };
     }
 
     private int maxScroll() {
-        int rows = (current().options().size() + cols() - 1) / cols();
-        return Math.max(0, rows * (CARD_H + GAP) - (gridBottom() - gridTop()));
+        int content = current().options().size() * (CARD_H + CARD_GAP);
+        return Math.max(0, content - (listBottom() - listTop()));
     }
 
-    private boolean isEquipped(Cosmetic c, String name) {
-        return c.module().isEnabled() && c.selected().equals(name);
+    private boolean isEquipped(Cosmetic cosmetic, String name) {
+        return cosmetic != null && cosmetic.module().isEnabled() && cosmetic.selected().equals(name);
     }
 
-    private void toggleOption(Cosmetic c, String name) {
-        Module m = c.module();
-        if (isEquipped(c, name)) {
-            m.setEnabled(false, true);
+    private void toggleOption(Cosmetic cosmetic, String name) {
+        if (cosmetic == null) return;
+        Module module = cosmetic.module();
+        if (isEquipped(cosmetic, name)) {
+            module.setEnabled(false, true);
         } else {
-            c.select(name);
-            if (!m.isEnabled()) m.setEnabled(true, true);
+            cosmetic.select(name);
+            if (!module.isEnabled()) module.setEnabled(true, true);
         }
     }
 
-    /** Rysuje mały, czytelny podgląd rodzaju kosmetyku bez potrzeby zakładania go. */
-    private void drawPreview(DrawContext ctx, int x, int y, int size, int type, String name) {
-        Rd.rrect(ctx, x, y, size, size, 5, 0xFF090A10);
-        Rd.rrect(ctx, x + 1, y + 1, size - 2, size - 2, 4, 0xFF171923);
-        int accent = previewAccent(name);
-
-        if (type == 0) {
-            // Peleryna: zwężający się materiał z pasami i emblematem.
-            int cx = x + size / 2;
-            int top = y + 7;
-            ctx.fill(cx - 10, top, cx + 10, top + 5, 0xFFB9BBC8);
-            for (int row = 0; row < 7; row++) {
-                int half = 12 - row;
-                int yy = top + 5 + row * 5;
-                ctx.fill(cx - half, yy, cx + half, yy + 5, row % 2 == 0 ? accent : Rd.mix(accent, 0xFF080A12, 0.3f));
-            }
-            ctx.fill(cx - 1, top + 14, cx + 2, top + 27, 0xFFE8EAF2);
-        } else if (type == 1) {
-            // Skrzydla: symetryczne piorka po obu stronach.
-            int cy = y + size / 2;
-            for (int i = 0; i < 5; i++) {
-                int yy = cy - 18 + i * 8;
-                int len = 11 + i * 3;
-                int col = i % 2 == 0 ? accent : Rd.mix(accent, 0xFFFFFFFF, 0.28f);
-                ctx.fill(x + size / 2 - len, yy, x + size / 2 - 2, yy + 5, col);
-                ctx.fill(x + size / 2 + 2, yy, x + size / 2 + len, yy + 5, col);
-            }
-            ctx.fill(x + size / 2 - 2, cy - 15, x + size / 2 + 2, cy + 19, 0xFFE6E8F0);
-        } else {
-            // Aureola: świetlisty pierścień nad małą sylwetką głowy.
-            int cx = x + size / 2, cy = y + size / 2 - 2;
-            for (int i = 0; i < 48; i++) {
-                double a = Math.PI * 2.0 * i / 48.0;
-                int rx = cx + (int) Math.round(Math.cos(a) * 16);
-                int ry = cy + (int) Math.round(Math.sin(a) * 9);
-                ctx.fill(rx - 1, ry - 1, rx + 2, ry + 2, Rd.withAlpha(accent, 150));
-            }
-            ctx.fill(cx - 6, cy + 7, cx + 6, cy + 19, 0xFFBFC4D2);
-            ctx.fill(cx - 9, cy + 17, cx + 9, cy + 21, 0xFF8A91A3);
-        }
-    }
-
-    private static int previewAccent(String name) {
+    private static int accentFor(String name) {
         String n = name.toLowerCase(java.util.Locale.ROOT);
-        if (n.contains("feniks") || n.contains("inferno") || n.contains("ognist")) return 0xFFFF7138;
-        if (n.contains("neon") || n.contains("cyber")) return 0xFF42DDF5;
-        if (n.contains("szmaragd") || n.contains("emerald")) return 0xFF35D89A;
-        if (n.contains("róż") || n.contains("pink")) return 0xFFFF76C8;
-        if (n.contains("kosmic") || n.contains("galaxy")) return 0xFFAA83FF;
-        if (n.contains("void") || n.contains("cieni") || n.contains("mrocz") || n.contains("eclipse") || n.contains("nietoperz")) return 0xFF9A83E8;
-        if (n.contains("crimson")) return 0xFFE83D62;
-        if (n.contains("royal") || n.contains("złot") || n.contains("gold") || n.contains("nexus")) return 0xFFFFC94A;
-        if (n.contains("srebr") || n.contains("frost") || n.contains("lodow")) return 0xFFD5DCEB;
-        if (n.contains("kryształ") || n.contains("crystal") || n.contains("smocz")) return 0xFF79CFFF;
-        return Rd.mix(0xFF55A7FF, 0xFFFF68B5, (name.hashCode() & 255) / 255f);
+        if (n.contains("eclipse") || n.contains("cień")) return 0xFF9A83C4;
+        if (n.contains("frost") || n.contains("kryształ")) return 0xFF8FC8DC;
+        if (n.contains("royal") || n.contains("klasyczna")) return 0xFFD4B477;
+        if (n.contains("orbit")) return 0xFF7DB5D2;
+        if (n.contains("srebr")) return 0xFFB8C2D0;
+        if (n.contains("pióra") || n.contains("nexus")) return 0xFFCAD0DA;
+        return 0xFF8898B5;
+    }
+
+    /** A restrained material swatch; the actual item is shown on the 3D player beside it. */
+    private void drawSwatch(DrawContext ctx, int x, int y, int size, String name) {
+        int accent = accentFor(name);
+        Rd.rrect(ctx, x, y, size, size, 5, 0xFF080B11);
+        Rd.rrect(ctx, x + 1, y + 1, size - 2, size - 2, 4, 0xFF171D28);
+        if (tab == 0) {
+            ctx.fill(x + 9, y + 5, x + size - 9, y + size - 5, Rd.mix(accent, 0xFF10151E, 0.28f));
+            ctx.fill(x + 11, y + 7, x + size - 11, y + size - 7, accent);
+            ctx.fill(x + size / 2 - 1, y + 9, x + size / 2 + 1, y + size - 9, 0xFFE6EAF0);
+        } else if (tab == 1) {
+            int cx = x + size / 2;
+            for (int i = 0; i < 4; i++) {
+                int yy = y + 7 + i * 7;
+                int len = 8 + i * 3;
+                ctx.fill(cx - len, yy, cx - 2, yy + 4, i % 2 == 0 ? accent : Rd.mix(accent, 0xFFFFFFFF, 0.25f));
+                ctx.fill(cx + 2, yy, cx + len, yy + 4, i % 2 == 0 ? accent : Rd.mix(accent, 0xFFFFFFFF, 0.25f));
+            }
+        } else {
+            int cx = x + size / 2, cy = y + size / 2;
+            for (int i = 0; i < 32; i++) {
+                double a = Math.PI * 2.0 * i / 32.0;
+                int rx = cx + (int) Math.round(Math.cos(a) * 11);
+                int ry = cy + (int) Math.round(Math.sin(a) * 7);
+                ctx.fill(rx - 1, ry - 1, rx + 2, ry + 2, accent);
+            }
+        }
+    }
+
+    private void renderPreview(DrawContext ctx, int mx, int my) {
+        int x = previewX(), y = previewY(), w = previewW(), h = previewH();
+        Rd.rrect(ctx, x, y, w, h, 8, 0xFF343B49);
+        Rd.rrect(ctx, x + 1, y + 1, w - 2, h - 2, 7, 0xF20E121A);
+        ctx.fillGradient(x + 2, y + 2, x + w - 2, y + h - 2, 0xFF171D29, 0xFF0C1018);
+
+        Rd.text(ctx, "PODGLĄD POSTACI", x + 14, y + 12, 0xFFB7C0CF);
+        Cosmetic cosmetic = current();
+        String selected = cosmetic == null ? "Brak kosmetyku" : cosmetic.selected();
+        Rd.text(ctx, selected, x + 14, y + 29, 0xFFFFFFFF);
+
+        if (client != null && client.player != null) {
+            int modelTop = y + 42;
+            int modelBottom = y + h - 8;
+            int modelSize = Math.max(48, Math.min(92, (modelBottom - modelTop) / 2));
+            InventoryScreen.drawEntity(
+                    ctx,
+                    x + 5, modelTop,
+                    x + w - 5, modelBottom,
+                    modelSize, 1.0f,
+                    mx, my,
+                    client.player
+            );
+            Rd.text(ctx, "Poruszaj kursorem, aby zmienić kąt", x + 14, y + h - 19, 0xFF78869A);
+        } else {
+            String line1 = "Podgląd 3D jest dostępny";
+            String line2 = "po wejściu do świata.";
+            Rd.text(ctx, line1, x + 14, y + h / 2 - 5, 0xFFD6DCE6);
+            Rd.text(ctx, line2, x + 14, y + h / 2 + 10, 0xFF8995A7);
+        }
+
+        if (cosmetic != null && cosmetic.module().isEnabled()) {
+            Rd.rrect(ctx, x + 12, y + h - 38, 78, 16, 4, 0xFF263B34);
+            Rd.text(ctx, "ZAŁOŻONE", x + 20, y + h - 34, 0xFF8AD5AA);
+        }
     }
 
     @Override
     public void render(DrawContext ctx, int mx, int my, float delta) {
         layout();
         int acc = Theme.accent();
-        ctx.fillGradient(0, 0, width, height, 0xFF050508, 0xFF10101A);
+        ctx.fillGradient(0, 0, width, height, 0xFF06080D, 0xFF111722);
 
-        Rd.rrect(ctx, px - 1, py - 1, pw + 2, ph + 2, 7, 0xFF34343E);
-        Rd.rrect(ctx, px, py, pw, ph, 6, 0xF2111116);
-        ctx.fill(px + 1, py + HEADER, px + pw - 1, py + HEADER + 1, 0xFF24242C);
-        Rd.text(ctx, "Cosmetics", px + 10, py + 11, 0xFFFFFFFF);
+        Rd.rrect(ctx, px - 1, py - 1, pw + 2, ph + 2, 9, 0xFF394251);
+        Rd.rrect(ctx, px, py, pw, ph, 8, 0xF211151D);
+        ctx.fill(px + 1, py + HEADER, px + pw - 1, py + HEADER + 1, 0xFF29313E);
+
+        Rd.text(ctx, "NEXUS", px + 14, py + 10, 0xFFE7EBF2);
+        Rd.text(ctx, "COSMETICS", px + 14, py + 22, 0xFF78869A);
+
         for (int i = 0; i < TABS.length; i++) {
             int tx = tabX(i), tw = tabW(i);
-            boolean on = tab == i;
-            boolean hov = Rd.in(mx, my, tx, py, tw, HEADER);
-            Rd.text(ctx, TABS[i], tx + 14, py + 11, on ? 0xFFFFFFFF : hov ? 0xFFCFCFD8 : 0xFF8E8E9A);
-            if (on) ctx.fill(tx + 4, py + HEADER - 2, tx + tw - 4, py + HEADER, acc);
+            boolean active = tab == i;
+            boolean hovered = Rd.in(mx, my, tx, py + 4, tw, HEADER - 6);
+            Rd.text(ctx, TABS[i], tx + 14, py + 17,
+                    active ? 0xFFFFFFFF : hovered ? 0xFFD2D9E4 : 0xFF8793A4);
+            if (active) ctx.fill(tx + 5, py + HEADER - 2, tx + tw - 5, py + HEADER, acc);
         }
 
-        Cosmetic c = current();
-        List<String> opts = c.options();
+        Cosmetic cosmetic = current();
+        List<String> options = cosmetic == null ? List.of() : cosmetic.options();
         scroll = Math.max(0, Math.min(maxScroll(), scroll));
-        int top = gridTop(), bottom = gridBottom();
-        ctx.enableScissor(px + 1, top, px + pw - 1, bottom);
-        for (int i = 0; i < opts.size(); i++) {
-            int[] r = cardRect(i);
-            if (r[1] + r[3] < top || r[1] > bottom) continue;
-            String name = opts.get(i);
-            boolean eq = isEquipped(c, name);
-            boolean hov = Rd.in(mx, my, r[0], r[1], r[2], r[3]) && my >= top && my < bottom;
-            Rd.rrect(ctx, r[0], r[1], r[2], r[3], 5, eq ? acc : 0xFF30303A);
-            Rd.rrect(ctx, r[0] + 1, r[1] + 1, r[2] - 2, r[3] - 2, 4, hov ? 0xFF1E1E26 : 0xFF17171D);
 
-            drawPreview(ctx, r[0] + 8, r[1] + 10, PREVIEW, tab, name);
-            int tx = r[0] + PREVIEW + 18;
-            Rd.text(ctx, name, tx, r[1] + 12, 0xFFFFFFFF);
-            Rd.text(ctx, c.builtins().contains(name) ? "Wbudowana" : "Własny plik", tx, r[1] + 27, 0xFF7A7A86);
-            Rd.text(ctx, eq ? "Założona – kliknij, aby zdjąć" : "Kliknij, aby założyć", tx, r[1] + 44,
-                    eq ? acc : 0xFF8E8E9A);
+        ctx.enableScissor(listX(), listTop(), listX() + cardWidth(), listBottom());
+        for (int i = 0; i < options.size(); i++) {
+            int[] r = cardRect(i);
+            if (r[1] + r[3] < listTop() || r[1] > listBottom()) continue;
+
+            String name = options.get(i);
+            boolean equipped = isEquipped(cosmetic, name);
+            boolean selected = cosmetic != null && cosmetic.selected().equals(name);
+            boolean hovered = Rd.in(mx, my, r[0], r[1], r[2], r[3]) && my >= listTop() && my < listBottom();
+
+            int border = equipped ? acc : selected ? 0xFF69788C : 0xFF303947;
+            Rd.rrect(ctx, r[0], r[1], r[2], r[3], 6, border);
+            Rd.rrect(ctx, r[0] + 1, r[1] + 1, r[2] - 2, r[3] - 2, 5,
+                    hovered ? 0xFF202938 : 0xFF171E28);
+            drawSwatch(ctx, r[0] + 8, r[1] + 9, 36, name);
+            int tx = r[0] + 53;
+            Rd.text(ctx, name, tx, r[1] + 11, 0xFFE8ECF3);
+            String meta = cosmetic != null && cosmetic.builtins().contains(name) ? "NEXUS ORIGINAL" : "CUSTOM FILE";
+            Rd.text(ctx, meta, tx, r[1] + 29, 0xFF7F8B9D);
+            if (equipped) Rd.text(ctx, "●", r[0] + r[2] - 16, r[1] + 19, 0xFF8AD5AA);
         }
         ctx.disableScissor();
 
-        Rd.text(ctx, "Własne pliki: " + c.folderHint(), px + 10, py + ph - 38, 0xFF7A7A86);
-        button(ctx, px + 8, py + ph - 24, 96, 16, "Odśwież pliki", mx, my);
-        button(ctx, px + pw - 8 - 70, py + ph - 24, 70, 16, "Wstecz", mx, my);
+        renderPreview(ctx, mx, my);
+
+        Rd.text(ctx, "PLIKI: " + (cosmetic == null ? "" : cosmetic.folderHint()), px + 12, py + ph - 31, 0xFF78869A);
+        button(ctx, px + 12, py + ph - 23, 100, 16, "Odśwież pliki", mx, my);
+        button(ctx, px + pw - 82, py + ph - 23, 70, 16, "Wstecz", mx, my);
     }
 
     private static void button(DrawContext ctx, int x, int y, int w, int h, String label, int mx, int my) {
-        boolean hov = Rd.in(mx, my, x, y, w, h);
-        Rd.rrect(ctx, x, y, w, h, 4, hov ? 0xFF5A5A68 : 0xFF34343E);
-        Rd.rrect(ctx, x + 1, y + 1, w - 2, h - 2, 3, hov ? 0xFF22222A : 0xFF18181E);
-        Rd.text(ctx, label, x + (w - Rd.width(label)) / 2, y + 4, 0xFFFFFFFF);
+        boolean hovered = Rd.in(mx, my, x, y, w, h);
+        Rd.rrect(ctx, x, y, w, h, 4, hovered ? 0xFF536174 : 0xFF35404F);
+        Rd.rrect(ctx, x + 1, y + 1, w - 2, h - 2, 3, hovered ? 0xFF263140 : 0xFF1B222D);
+        Rd.text(ctx, label, x + (w - Rd.width(label)) / 2, y + 4, 0xFFE9EDF4);
     }
 
     @Override
@@ -208,18 +263,34 @@ public final class CosmeticsScreen extends Screen {
         if (click.button() != 0) return false;
         layout();
         double mx = click.x(), my = click.y();
+
         for (int i = 0; i < TABS.length; i++) {
-            if (Rd.in(mx, my, tabX(i), py, tabW(i), HEADER)) { tab = i; scroll = 0; return true; }
+            if (Rd.in(mx, my, tabX(i), py + 4, tabW(i), HEADER - 6)) {
+                tab = i;
+                scroll = 0;
+                return true;
+            }
         }
-        if (Rd.in(mx, my, px + pw - 78, py + ph - 24, 70, 16)) { client.setScreen(parent); return true; }
-        if (Rd.in(mx, my, px + 8, py + ph - 24, 96, 16)) { current().refresh(); return true; }
-        if (my >= gridTop() && my < gridBottom()) {
-            List<String> opts = current().options();
-            for (int i = 0; i < opts.size(); i++) {
-                int[] r = cardRect(i);
-                if (Rd.in(mx, my, r[0], r[1], r[2], r[3])) {
-                    toggleOption(current(), opts.get(i));
-                    return true;
+
+        if (Rd.in(mx, my, px + pw - 82, py + ph - 23, 70, 16)) {
+            client.setScreen(parent);
+            return true;
+        }
+        if (Rd.in(mx, my, px + 12, py + ph - 23, 100, 16)) {
+            if (current() != null) current().refresh();
+            return true;
+        }
+
+        if (mx >= listX() && mx < listX() + cardWidth() && my >= listTop() && my < listBottom()) {
+            Cosmetic cosmetic = current();
+            if (cosmetic != null) {
+                List<String> options = cosmetic.options();
+                for (int i = 0; i < options.size(); i++) {
+                    int[] r = cardRect(i);
+                    if (Rd.in(mx, my, r[0], r[1], r[2], r[3])) {
+                        toggleOption(cosmetic, options.get(i));
+                        return true;
+                    }
                 }
             }
         }
@@ -228,7 +299,11 @@ public final class CosmeticsScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
-        scroll -= (float) (vertical * 14);
+        if (mouseX >= listX() && mouseX < listX() + cardWidth()
+                && mouseY >= listTop() && mouseY < listBottom()) {
+            scroll -= (float) (vertical * 18);
+            scroll = Math.max(0, Math.min(maxScroll(), scroll));
+        }
         return true;
     }
 
