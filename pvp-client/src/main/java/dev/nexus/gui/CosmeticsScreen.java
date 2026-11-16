@@ -246,7 +246,8 @@ public final class CosmeticsScreen extends Screen {
 
         renderPreview(ctx, mx, my);
 
-        Rd.text(ctx, "PLIKI: " + (cosmetic == null ? "" : cosmetic.folderHint()), px + 12, py + ph - 31, 0xFF78869A);
+        String customFolder = tab == 0 ? "config/nexus/cosmetics/" : tab == 1 ? "config/nexus/cosmetics/wings/" : "config/nexus/cosmetics/halos/";
+        Rd.text(ctx, "WŁASNE: " + customFolder, px + 12, py + ph - 36, 0xFF78869A);
         button(ctx, px + 12, py + ph - 23, 100, 16, "Odśwież pliki", mx, my);
         button(ctx, px + pw - 82, py + ph - 23, 70, 16, "Wstecz", mx, my);
     }
