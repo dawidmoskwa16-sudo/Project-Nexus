@@ -5,7 +5,7 @@ import dev.nexus.setting.NumberSetting;
 
 import java.awt.image.BufferedImage;
 
-/** Skrzydla widoczne tylko dla Ciebie (8 wbudowanych + pliki z cosmetics/wings/). */
+/** Skrzydla widoczne tylko dla Ciebie (3 dopracowane wbudowane wzory + pliki z cosmetics/wings/). */
 public final class Wings extends TexturedCosmetic {
     private final NumberSetting flap = add(new NumberSetting("Machanie", 1.0, 0.0, 3.0, 0.1));
 
