@@ -137,11 +137,16 @@ public final class CosmeticsScreen extends Screen {
 
     private static int previewAccent(String name) {
         String n = name.toLowerCase(java.util.Locale.ROOT);
-        if (n.contains("neon")) return 0xFF42DDF5;
-        if (n.contains("srebr") || n.contains("frost")) return 0xFFD5DCEB;
-        if (n.contains("złot") || n.contains("gold") || n.contains("nexus")) return 0xFFFFC94A;
-        if (n.contains("eclipse") || n.contains("nietoperz")) return 0xFF9A83E8;
-        if (n.contains("kryształ") || n.contains("crystal")) return 0xFF79CFFF;
+        if (n.contains("feniks") || n.contains("inferno") || n.contains("ognist")) return 0xFFFF7138;
+        if (n.contains("neon") || n.contains("cyber")) return 0xFF42DDF5;
+        if (n.contains("szmaragd") || n.contains("emerald")) return 0xFF35D89A;
+        if (n.contains("róż") || n.contains("pink")) return 0xFFFF76C8;
+        if (n.contains("kosmic") || n.contains("galaxy")) return 0xFFAA83FF;
+        if (n.contains("void") || n.contains("cieni") || n.contains("mrocz") || n.contains("eclipse") || n.contains("nietoperz")) return 0xFF9A83E8;
+        if (n.contains("crimson")) return 0xFFE83D62;
+        if (n.contains("royal") || n.contains("złot") || n.contains("gold") || n.contains("nexus")) return 0xFFFFC94A;
+        if (n.contains("srebr") || n.contains("frost") || n.contains("lodow")) return 0xFFD5DCEB;
+        if (n.contains("kryształ") || n.contains("crystal") || n.contains("smocz")) return 0xFF79CFFF;
         return Rd.mix(0xFF55A7FF, 0xFFFF68B5, (name.hashCode() & 255) / 255f);
     }
 
