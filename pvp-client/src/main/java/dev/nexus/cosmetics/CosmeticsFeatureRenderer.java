@@ -16,7 +16,6 @@ import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
 
 /**
  * Rysuje skrzydla i aureole lokalnego gracza.
@@ -31,16 +30,7 @@ public final class CosmeticsFeatureRenderer
 
     private static boolean isLocal(PlayerEntityRenderState state) {
         MinecraftClient mc = MinecraftClient.getInstance();
-
-        if (mc.player == null) return false;
-
-        Vec3d p = mc.player.getLerpedPos(
-                mc.getRenderTickCounter().getTickProgress(false)
-        );
-
-        return Math.abs(state.x - p.x) < 0.05
-                && Math.abs(state.y - p.y) < 0.05
-                && Math.abs(state.z - p.z) < 0.05;
+        return mc.player != null && state.id == mc.player.getId();
     }
 
     @Override
