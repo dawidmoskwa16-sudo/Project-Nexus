@@ -7,7 +7,7 @@ import dev.nexus.setting.BooleanSetting;
 import dev.nexus.setting.ModeSetting;
 import dev.nexus.setting.NumberSetting;
 
-/** Peleryny: 3 wbudowane + wlasne pliki z .minecraft/config/nexus/cosmetics/ (PNG, JPG, GIF). */
+/** Peleryny: 4 dopracowane wbudowane wzory + pliki z .minecraft/config/nexus/cosmetics/ (PNG, JPG, GIF). */
 public final class Capes extends Module implements dev.nexus.cosmetics.Cosmetic {
     private final ModeSetting cape = add(new ModeSetting("Cape", "Nexus", CapeManager.availableNames().toArray(new String[0])));
     private final ModeSetting fit = add(new ModeSetting("Fit", "Cover", "Cover", "Stretch"));
