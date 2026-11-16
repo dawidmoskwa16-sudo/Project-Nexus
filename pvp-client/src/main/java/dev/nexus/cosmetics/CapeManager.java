@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
 import java.util.stream.Stream;
 
 /** Ladowanie, skladanie i podmiana tekstury peleryny lokalnego gracza. */
